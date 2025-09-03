@@ -1,0 +1,1330 @@
+# Full FNAF recreation in Skript
+# Made by AustinG
+#
+on skript load:
+    fnafKillAllRegisteredNpcs()
+
+function fnafSetupNpc(name: text, skinname: text, gameid: integer, ailvl: integer):
+    #make console execute command "ac SetupNpc call!"
+    if fnafIsValidGameId({_gameid}) is not true:
+        stop
+    create citizen named {_name} at fnafGetOffsetLocation({fnaf.%{_name}%spawn}, fnafGetMapId({_gameid}))
+    if {_name} is "Foxy":
+        set {-fnaf.session.%{_gameid}%.npc.%{_name}%.location} to "%{_name}%spawn"
+        set {-fnaf.session.%{_gameid}%.npc.%{_name}%.stage} to 1
+        set {-fnaf.session.%{_gameid}%.npc.%{_name}%.froze} to false
+        set {-fnaf.session.%{_gameid}%.npc.%{_name}%.camdowndelaytime} to 1 second
+    else:
+        set {-fnaf.session.%{_gameid}%.npc.%{_name}%.location} to "%{_name}%spawn"
+        set {-fnaf.session.%{_gameid}%.npc.%{_name}%.froze} to false
+    set {_id} to last created citizen
+    set {-fnaf.session.%{_gameid}%.npc.%{_name}%} to {_id}
+    set {-fnaf.session.%{_gameid}%.npc.%{_name}%.ailvl} to {_ailvl}
+    add {_id} to {fnaf.npcregistry::*}
+    set citizen {_id} nametag invisible
+    change citizen {_id} skin to {_skinname}    
+
+function fnafFreezeNpcs(gameid: integer):
+    fnafFreezeNpc("Foxy", {_gameid})
+    fnafFreezeNpc("Bonnie", {_gameid})
+    fnafFreezeNpc("Freddy", {_gameid})
+    fnafFreezeNpc("Chica", {_gameid})
+    
+function fnafUnfreezeNpcs(gameid: integer):
+    fnafUnfreezeNpc("Foxy", {_gameid})
+    fnafUnfreezeNpc("Bonnie", {_gameid})
+    fnafUnfreezeNpc("Freddy", {_gameid})
+    fnafUnfreezeNpc("Chica", {_gameid})
+    
+function fnafFreezeNpc(npc: text, gameid: integer):
+    set {-fnaf.session.%{_gameid}%.npc.%{_npc}%.froze} to true
+    
+function fnafUnfreezeNpc(npc: text, gameid: integer):
+    set {-fnaf.session.%{_gameid}%.npc.%{_npc}%.froze} to false
+    
+function fnafCameraBlackout(gameid: integer):
+    stop #Temporarily disable. Remove this line to enable camera blackouts.
+    set {-fnaf.session.%{_gameid}%.camerablackout} to true
+    if fnafIsCameraOpen({_gameid}) is true:
+        teleport fnafGetSessionOwner({_gameid}) to fnafGetOffsetLocation({fnaf.blackoutcam}, fnafGetMapId({_gameid}))
+    wait 5 seconds
+    fnafCameraUnblackout({_gameid})
+    
+function fnafCameraUnblackout(gameid: integer):
+    clear {-fnaf.session.%{_gameid}%.camerablackout}
+    if fnafIsCameraOpen({_gameid}) is true:
+        fnafOpenCamera(fnafGetCameraLocation({_gameid}), {_gameid})
+        
+function fnafIsCameraBlackedOut(gameid: integer) :: boolean:
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    if {-fnaf.session.%{_gameid}%.camerablackout} is true:
+        return true
+    return false
+    
+function fnafDumpMemory(pl: player):
+    set {_gameid} to fnafGetPlayerGameId({_pl})
+    send "Active Game IDs:" to {_pl}
+    loop {fnaf.sessions::*}:
+        send loop-value to {_pl}
+    send "&7--------" to {_pl}
+    send "Session ID: %{_gameid}%" to {_pl}
+    send "Session owner: %fnafGetSessionOwner({_gameid})%" to {_pl}
+    send "Map ID: %fnafGetMapId({_gameid})%" to {_pl}
+    send "NPC IDs associated with session:" to {_pl}
+    send "  Foxy: %{-fnaf.session.%{_gameid}%.npc.Foxy}%, AI lvl: %fnafGetNpcAiLvl("Foxy", {_gameid})%, Loc: %fnafGetNpcLocation("Foxy", {_gameid})%" to {_pl}
+    send "  Chica: %{-fnaf.session.%{_gameid}%.npc.Chica}% - AI lvl: %fnafGetNpcAiLvl("Chica", {_gameid})%, Loc: %fnafGetNpcLocation("Chica", {_gameid})%" to {_pl}
+    send "  Bonnie: %{-fnaf.session.%{_gameid}%.npc.Bonnie}% - AI lvl: %fnafGetNpcAiLvl("Bonnie", {_gameid})%, Loc: %fnafGetNpcLocation("Bonnie", {_gameid})%" to {_pl}
+    send "  Freddy: %{-fnaf.session.%{_gameid}%.npc.Freddy}% - AI lvl: %fnafGetNpcAiLvl("Freddy", {_gameid})%, Loc: %fnafGetNpcLocation("Freddy", {_gameid})%" to {_pl}
+    send "&7--------" to {_pl}
+
+command /fnafskipnight:
+    trigger:
+        if player is op:   
+            if fnafIsValidGameId(fnafGetPlayerGameId(player)) is false:
+                stop
+            fnafAdvanceNight(fnafGetPlayerGameId(player))
+     
+on world change:
+    if fnafIsValidGameId(fnafGetPlayerGameId(player)) is true:
+        wait 0.1 second
+        if player is not in world "FNAF":
+            fnafStopGame(fnafGetPlayerGameId(player))
+     
+command /fnaf [<text>] [<text>] [<integer>]:
+    trigger:
+        if arg 1 is "start":
+            if arg 2 is set:
+                if player has permission "admin.chat":    
+                    set {_night} to arg 2 parsed as integer
+                    if fnafIsValidNightRange({_night}) is true:
+                        fnafStartGame(player, {_night})
+                    else:
+                        send "&7[&6&lFNAF&7] &cError! Night %{_night}% is not valid. Valid range: 0-6"
+                else:
+                    fnafStartGame(player, 0)
+            else:
+                fnafStartGame(player, 0)
+        else if arg 1 is "stop":
+            fnafStopGame(fnafGetPlayerGameId(player))
+        else if arg 1 is "dumpvar":
+            fnafDumpMemory(player)
+        else if arg 1 is "killall":
+            if player is op:
+                fnafStopGame(0)
+        else if arg 1 is "setcam":
+            if player is op:
+                if arg 2 is set:
+                    set {fnaf.camloc.%arg 2%} to player's location
+                    send "Successfully updated location of Camera %arg 2%"
+        else if arg 1 is "setnpc":
+            if player is op:
+                if arg 2 is set:
+                    set {fnaf.npcloc.%arg 2%} to player's location
+                    send "Successfully updated location of loc %arg 2%" 
+        else if arg 1 is "maxdif":
+            if player is op:
+                fnafUpdateNpcAiLvl("Foxy", fnafGetPlayerGameId(player), 20)
+                fnafUpdateNpcAiLvl("Chica", fnafGetPlayerGameId(player), 20)
+                fnafUpdateNpcAiLvl("Freddy", fnafGetPlayerGameId(player), 20)
+                fnafUpdateNpcAiLvl("Bonnie", fnafGetPlayerGameId(player), 20)
+        else if arg 1 is "skipnight":
+            if player is op:
+                fnafAdvanceNight(fnafGetPlayerGameId(player))
+        else if arg 1 is "setai":
+            if player is op:
+                if arg 2 is set:
+                    if arg 3 is set:
+                        fnafUpdateNpcAiLvl(arg 2, fnafGetPlayerGameId(player), arg 3)
+        else:
+            make console execute command "chestcommands open FNAF %player%"
+            
+#function fnafSendCmdHelp(pl: player):
+#   send 
+            
+function fnafGetPlayerGameId(pl: player) :: integer:
+    loop {fnaf.sessions::*}:
+        if {-fnaf.session.%loop-value%.player} is {_pl}:
+            return loop-value
+    return 0
+
+function fnafIsValidGameId(gameid: integer) :: boolean:
+    loop {fnaf.sessions::*}:
+        if loop-value is {_gameid}:
+            return true
+    return false
+
+function fnafKillAllRegisteredNpcs():
+    loop {fnaf.npcregistry::*}:
+        remove citizen loop-value
+        remove loop-value from {fnaf.npcregistry::*}
+
+function fnafCleanupAllNpcs(gameid: integer):
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    set {_npcnames::*} to "Foxy", "Chica", "Bonnie", and "Freddy"
+    loop {_npcnames::*}:
+        fnafCleanupNpc(loop-value, {_gameid})
+         
+function fnafCleanupNpc(npc: text, gameid: integer):
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    if fnafIsNpcValid({_npc}, {_gameid}) is true:
+        remove citizen fnafGetNpcId({_npc}, {_gameid})
+        remove fnafGetNpcId({_npc}, {_gameid}) from {fnaf.npcregistry::*}
+    clear {-fnaf.session.%{_gameid}%.npc.%{_npc}%.ailvl}
+    clear {-fnaf.session.%{_gameid}%.npc.%{_npc}%.lastmovementtime}
+    if {_npc} is "Foxy":
+        clear {-fnaf.session.%{_gameid}%.npc.%{_npc}%.attempts}
+        
+function fnafGetNpcLastMovementTime(npc: text, gameid: integer) :: timespan:
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    return {-fnaf.session.%{_gameid}%.npc.%{_npc}%.lastmovementtime}
+    
+function fnafMarkNpcLastMovementTime(npc: text, gameid: integer):
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    set {-fnaf.session.%{_gameid}%.npc.%{_npc}%.lastmovementtime} to now
+
+function fnafGetNpcId(npc: text, gameid: integer) :: integer:
+    if fnafIsValidGameId({_gameid}) is true:
+        if {_npc} is "Foxy" or "Chica" or "Bonnie" or "Freddy":
+            return {-fnaf.session.%{_gameid}%.npc.%{_npc}%}
+    return 0
+        
+function fnafGetNpcAiLvl(name: text, gameid: integer) :: integer:
+    if {-fnaf.session.%{_gameid}%.npc.%{_name}%.ailvl} is set:
+        return {-fnaf.session.%{_gameid}%.npc.%{_name}%.ailvl}
+        
+function fnafUpdateNpcAiLvl(name: text, gameid: integer, ailvl: integer):
+    if {-fnaf.session.%{_gameid}%.npc.%{_name}%.ailvl} is set:
+        set {-fnaf.session.%{_gameid}%.npc.%{_name}%.ailvl} to {_ailvl}
+      
+function fnafJumpscare(npc: text, gameid: integer):
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    fnafFreezeNpcs({_gameid})
+    set {_pl} to fnafGetSessionOwner({_gameid})
+    if {_npc} is not "Foxy":
+        move citizen fnafGetNpcId({_npc}, {_gameid}) to {fnaf.cameras.office} at speed 1.5
+        wait 1 second
+    if {_npc} is "Freddy":
+        loop 4 times:
+            play "entity_iron_golem_death" to {_pl}
+    fnafLockCamera({_gameid})
+    fnafCloseCamera({_gameid})
+    loop 50 times:
+        strike lightning at {_pl}
+    send title "&c&lGame Over!" with subtitle "" to {_pl}
+    wait 5 seconds
+    fnafStopGame({_gameid})
+      
+function fnafSetupNpcs(gameid: integer):
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+ #   fnafMessageSessionOwner("Setting up NPCs..", {_gameid})
+    set {_currentNight} to fnafGetCurrentNight({_gameid})
+    if {_currentNight} is 1:
+        set {_freddyai} to 0
+        set {_bonnieai} to 0
+        set {_chicaai} to 0
+        set {_foxyai} to 0
+    else if {_currentNight} is 2:
+        set {_freddyai} to 0
+        set {_bonnieai} to 3
+        set {_chicaai} to 1
+        set {_foxyai} to 1
+    else if {_currentNight} is 3:
+        set {_freddyai} to 1
+        set {_bonnieai} to 0
+        set {_chicaai} to 5
+        set {_foxyai} to 2
+    else if {_currentNight} is 4:
+        set {_freddyai} to a random integer between 1 and 2
+        set {_bonnieai} to 2
+        set {_chicaai} to 4
+        set {_foxyai} to 6
+    else if {_currentNight} is 5:
+        set {_freddyai} to 3
+        set {_bonnieai} to 5
+        set {_chicaai} to 7
+        set {_foxyai} to 5
+    else if {_currentNight} is 6:
+        set {_freddyai} to 4
+        set {_bonnieai} to 10
+        set {_chicaai} to 12
+        set {_foxyai} to 16
+    fnafSetupNpc("Foxy", "Asakku_Narukami", {_gameid}, {_foxyai})
+    fnafSetupNpc("Chica", "Mondly", {_gameid}, {_chicaai})
+    fnafSetupNpc("Bonnie", "TOMEE_", {_gameid}, {_bonnieai})
+    fnafSetupNpc("Freddy", "Assertion_", {_gameid}, {_freddyai})
+    
+function fnafGetCurrentTime(gameid: integer) :: integer:
+    if {-fnaf.session.%{_gameid}%.time} is set:
+        return {-fnaf.session.%{_gameid}%.time}
+    return 0
+    
+function fnafGetCurrentNight(gameid: integer) :: integer:
+    if {-fnaf.session.%{_gameid}%.night} is set:
+        return {-fnaf.session.%{_gameid}%.night}
+    return 0
+ 
+function fnafMessageSessionOwner(msg: text, gameid: integer):
+    send {_msg} to fnafGetSessionOwner({_gameid})
+ 
+function fnafGetIsAdvancing(gameid: integer) :: boolean:
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    if {-fnaf.session.%{_gameid}%.isAdvancing} is true:
+        return true
+    return false
+    
+function fnafSetIsAdvancing(state: boolean, gameid: integer):
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    set {-fnaf.session.%{_gameid}%.isAdvancing} to {_state}
+
+function fnafFormatNumber(number: integer) :: text:
+    if {_number} is 1:
+        return "1st"
+    else if {_number} is 2:
+        return "2nd" 
+    else if {_number} is 3:
+        return "3rd" 
+    else:
+        return "%{_number}%th" 
+
+function fnafClearFoxyAttempts(gameid: integer):
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    clear {-fnaf.session.%{_gameid}%.npc.Foxy.attempts}
+
+function fnafAdvanceNight(gameid: integer):
+    #make console execute command "ac AdvanceNight call!"
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    if fnafGetIsAdvancing({_gameid}) is true:
+        stop
+    set {_player} to fnafGetSessionOwner({_gameid})
+    fnafSetIsAdvancing(true, {_gameid})
+    if {-fnaf.session.%{_gameid}%.night} is set:
+        if fnafGetCurrentNight({_gameid}) is greater than 5:
+            fnafVictory({_gameid})
+        else:
+            if fnafGetCurrentNight({_gameid}) is greater than 0:
+                if fnafGetCurrentNight({_gameid}) is less than 6:
+                    make console execute command "eco give %fnafGetSessionOwner({_gameid})% %1000 * fnafGetCurrentNight({_gameid})%"
+            fnafCleanupAllNpcs({_gameid})
+            add 1 to {-fnaf.session.%{_gameid}%.night}
+            teleport {_player} to fnafGetOffsetLocation({fnaf.blackoutcam}, fnafGetMapId({_gameid}))
+            wait 0.5 seconds
+            clear {_player}'s inventory
+            set {_player}'s gamemode to adventure
+            send title "12:00 AM" with subtitle "%fnafFormatNumber(fnafGetCurrentNight({_gameid}))% Night" to fnafGetSessionOwner({_gameid})
+            wait 4.8 seconds
+            fnafStartClock({_gameid})
+          # fnafSetPowerLevel(100.0, {_gameid}) - We do not have to do this anymore
+            fnafStartPower({_gameid})
+            fnafStartActionBar({_gameid})
+            fnafOpenDoor("west", {_gameid})
+            fnafOpenDoor("east", {_gameid})
+            fnafDisableLight("west", {_gameid})
+            fnafDisableLight("east", {_gameid})
+            fnafEnableOfficeLight({_gameid})
+           # set {_msg} to "&6FNAF: Current Night is: %fnafGetCurrentNight({_gameid})%"
+           # fnafMessageSessionOwner({_msg}, {_gameid})
+            wait 0.1 seconds
+            fnafSetupNpcs({_gameid})
+            wait 0.4 second
+            fnafRunGameAi({_gameid})
+            fnafSetIsAdvancing(false, {_gameid})
+            set {-fnaf.session.%{_gameid}%.location} to "1A"
+            fnafCloseCamera({_gameid})
+            
+function fnafVictory(gameid: integer):
+    if {-fnaf.session.%{_gameid}%.isVictoryPhase} is set:
+        stop
+    set {-fnaf.session.%{_gameid}%.isVictoryPhase} to true
+    send "&7[&6&lFNAF&7] &eYou passed every night! &a&lYOU WIN!" to fnafGetSessionOwner({_gameid})
+    send title "&a&lWinner!" with subtitle "" to {_pl}
+#    fnafPayout(fnafGetSessionOwner({_gameid}))
+    wait 3 seconds
+    fnafStopGame({_gameid})
+  
+function fnafAdvanceNpcAi(gameid: integer):
+    if {-fnaf.session.%{_gameid}%.time} is set:
+        set {_gameTime} to {-fnaf.session.%{_gameid}%.time}
+        if {_gameTime} is 12:
+            set {-fnaf.session.%{_gameid}%.time} to 1
+        else:
+            add 1 to {-fnaf.session.%{_gameid}%.time}
+        #send "Game time is now: %fnafGetCurrentTime({_gameid})%AM" to fnafGetSessionOwner({_gameid})
+        if {_gameTime} is 2:
+            fnafUpdateNpcAiLvl("Bonnie", {_gameid}, fnafGetNpcAiLvl("Bonnie", {_gameid}) + 1)
+        else if {_gameTime} is 3:
+            fnafUpdateNpcAiLvl("Bonnie", {_gameid}, fnafGetNpcAiLvl("Bonnie", {_gameid}) + 1)
+            fnafUpdateNpcAiLvl("Chica", {_gameid}, fnafGetNpcAiLvl("Chica", {_gameid}) + 1)
+            fnafUpdateNpcAiLvl("Foxy", {_gameid}, fnafGetNpcAiLvl("Foxy", {_gameid}) + 1)
+        else if {_gameTime} is 4:
+            fnafUpdateNpcAiLvl("Bonnie", {_gameid}, fnafGetNpcAiLvl("Bonnie", {_gameid}) + 1)
+            fnafUpdateNpcAiLvl("Chica", {_gameid}, fnafGetNpcAiLvl("Chica", {_gameid}) + 1)
+            fnafUpdateNpcAiLvl("Foxy", {_gameid}, fnafGetNpcAiLvl("Foxy", {_gameid}) + 1)
+
+function fnafGetSessionOwner(gameid: integer) :: player:
+    if {-fnaf.session.%{_gameid}%.player} is set:
+        return {-fnaf.session.%{_gameid}%.player}      
+
+function fnafStopGame(gameid: integer):
+    if {_gameid} is 0:
+        loop {fnaf.sessions::*}:
+            fnafStopGame(loop-value)
+    else:
+        if {fnaf.sessions::*} does not contain {_gameid}:
+            make console execute command "ac failed to end game %{_gameid}%, game ID does not exist"
+            stop
+        fnafMessageSessionOwner("&7[&6&lFNAF&7] &cGame Shutting Down. &bStart a new game using &l/fnaf start", {_gameid})
+        teleport fnafGetSessionOwner({_gameid}) to {fnaf.lastloc.%fnafGetSessionOwner({_gameid})%}
+        fnafCleanupAllNpcs({_gameid})
+        fnafOpenDoor("west", {_gameid})
+        fnafOpenDoor("east", {_gameid})
+        clear {-fnaf.session.%{_gameid}%.player}
+        clear {-fnaf.session.%{_gameid}%.camerablackout}
+        clear {-fnaf.session.%{_gameid}%.isAdvancing}
+        clear {-fnaf.session.%{_gameid}%.lastclicktime}
+        if fnafGetSessionOwner({_gameid}) is online:
+            clear {fnaf.lastloc.%fnafGetSessionOwner({_gameid})%}
+        clear {-fnaf.session.%{_gameid}%.isVictoryPhase}
+        remove {_gameid} from {fnaf.sessions::*}
+     
+on join:
+    if {fnaf.lastloc.%player%} is set:
+        if fnafIsValidGameId(fnafGetPlayerGameId(player)) is true:
+            stop
+        wait 0.2 seconds
+        if player is online:
+            make console execute command "spawn %player%"
+            teleport player to {fnaf.lastloc.%player%}
+            clear {fnaf.lastloc.%player%}
+     
+function fnafStartGame(pl: player, night: integer):
+    #if {fnaf.sessions::*} is set:
+    #    send "&7[&c&lError&7] &6FNAF only supports one game at a time during BETA testing." to {_pl}
+     #   stop
+    if fnafGetPlayerGameId({_pl}) is set:
+        if fnafGetPlayerGameId({_pl}) is not 0:
+            send "&7[&c&lError&7] &cYou are already in a FNAF game." to {_pl}
+            stop
+    set {_gameid} to a random integer between 1111 and 999999
+    # Just incase the same number is chosen twice.. maybe this won't loop unexpectedly.
+    if {fnaf.sessions::%{_gameid}%} is set:
+        fnafStartGame({_pl}, {_night})
+        stop
+    set {-fnaf.session.%{_gameid}%.mapid} to fnafFindNextMapId()
+    add {_gameid} to {fnaf.sessions::*}
+    set {-fnaf.session.%{_gameid}%.player} to {_pl}
+    set {fnaf.lastloc.%{_pl}%} to {_pl}'s location
+    if fnafIsValidNightRange({_night}) is true:
+        set {-fnaf.session.%{_gameid}%.night} to {_night}
+    else:
+        set {-fnaf.session.%{_gameid}%.night} to 0
+    fnafAdvanceNight({_gameid})
+    fnafRunGameAi({_gameid})
+    
+function fnafIsValidNightRange(night: integer) :: boolean:
+    if {_night} is greater than -1:
+        if {_night} is less than 7:
+            return true
+    return false
+ 
+function fnafGetMapId(gameid: integer) :: integer:
+    if fnafIsValidGameId({_gameid}) is true:
+        if {-fnaf.session.%{_gameid}%.mapid} is set:
+            return {-fnaf.session.%{_gameid}%.mapid}
+        else:
+            make console execute command "ac [FNAF ERROR] Failed to get Map ID for GameID %{_gameid}%"
+ 
+function fnafFindNextMapId() :: integer:
+    return size of {fnaf.sessions::*}
+    
+function fnafStartActionBar(gameid: integer):
+    set {_sessionOwner} to fnafGetSessionOwner({_gameid})
+    while fnafIsValidGameId({_gameid}) is true:
+        if {_sessionOwner} is fnafGetSessionOwner({_gameid}):
+            send action bar "&eNight: %fnafGetCurrentNight({_gameid})% - Power: %floor(fnafGetPowerLevel({_gameid}))%%% left - %fnafPowerToBars({_gameid})% &e- Time: %fnafGetCurrentTime({_gameid})%AM" to fnafGetSessionOwner({_gameid})
+            wait 0.5 second
+
+function fnafGetPowerSessionId(gameid: integer) :: integer:
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    return {-fnaf.session.%{_gameid}%.powerSessionId}
+
+function fnafStartPower(gameid: integer):
+    set {_powerSessionId} to a random integer between 11111 and 999999
+    set {-fnaf.session.%{_gameid}%.powerSessionId} to {_powerSessionId}
+    set {-fnaf.session.%{_gameid}%.power} to 100.0
+    while fnafGetCurrentTime({_gameid}) is not 6:
+        if fnafIsValidGameId({_gameid}) is false:
+            stop
+        if {_powerSessionId} is not fnafGetPowerSessionId({_gameid}):
+            stop
+        if fnafGetPowerLevel({_gameid}) is less than 1:
+            fnafPowerOutage({_gameid})
+            stop
+        wait 1 second
+        if fnafGetPowerUsage({_gameid}) is 1:
+            fnafSetPowerLevel((fnafGetPowerLevel({_gameid}) - 0.1), {_gameid})
+        if fnafGetPowerUsage({_gameid}) is 2:
+            fnafSetPowerLevel((fnafGetPowerLevel({_gameid}) - 0.2), {_gameid})
+        if fnafGetPowerUsage({_gameid}) is 3:
+            fnafSetPowerLevel((fnafGetPowerLevel({_gameid}) - 0.3), {_gameid})
+        if fnafGetPowerUsage({_gameid}) is 4:
+            fnafSetPowerLevel((fnafGetPowerLevel({_gameid}) - 0.4), {_gameid})
+        if fnafGetPowerUsage({_gameid}) is 5:
+            fnafSetPowerLevel((fnafGetPowerLevel({_gameid}) - 0.5), {_gameid})
+            
+function fnafPowerOutage(gameid: integer):
+  #  fnafMessageSessionOwner("Power outage has begun!", {_gameid})
+    set {_npc} to fnafGetNpcId("Freddy", {_gameid})
+    set {_npcs::*} to "Foxy", "Bonnie", and "Chica"
+    loop {_npcs::*}:
+        fnafCleanupNpc(loop-value, {_gameid})
+    set {_night} to fnafGetCurrentNight({_gameid})
+    fnafDisableLight("west", {_gameid})
+    fnafDisableLight("east", {_gameid})
+    fnafOpenDoor("west", {_gameid})
+    fnafOpenDoor("east", {_gameid})
+    set block at {fnaf.westhallblackdoortop} to air
+    set block at {fnaf.westhallblackdoorbottom} to air
+    fnafMoveAiToLocation(fnafGetNpcId("Freddy", {_gameid}), "westhalldoor")
+    wait 15 seconds
+    if fnafIsValidGameId({_gameid}) is true:
+        if {_night} is fnafGetCurrentNight({_gameid}):
+            if fnafIsNpcValid("Freddy", {_gameid}) is true:
+                fnafJumpscare("Freddy", {_gameid})
+                wait 2 seconds
+    fnafStopGame({_gameid})
+            
+function fnafEnableOfficeLight(gameid: integer):
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    set block at {fnaf.officelight1} to sea lantern
+    set block at {fnaf.officelight2} to sea lantern
+    
+function fnafDisableOfficeLight(gameid: integer):
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    set block at {fnaf.officelight1} to air
+    set block at {fnaf.officelight2} to air   
+
+function fnafGetPowerLevel(gameid: integer) :: number:
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    if {-fnaf.session.%{_gameid}%.power} is not set:
+        return 100.0
+    return {-fnaf.session.%{_gameid}%.power}
+    
+function fnafSetPowerLevel(level: number, gameid: integer):
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    set {-fnaf.session.%{_gameid}%.power} to {_level}
+    if (fnafGetPowerLevel({_gameid})) is less than 0.1:
+        set {-fnaf.session.%{_gameid}%.power} to 0
+          
+function fnafGetPowerUsage(gameid: integer) :: integer:
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    # Fix power not showing 100% at beginning of the game
+    if {-fnaf.session.%{_gameid}%.power} is not set:
+        return 1
+    set {_usage} to 1
+    if fnafIsCameraOpen({_gameid}) is true:
+        add 1 to {_usage}
+    if fnafIsDoorOpen("west", {_gameid}) is false:
+        add 1 to {_usage}
+    if fnafIsDoorOpen("east", {_gameid}) is false:
+        add 1 to {_usage}
+    if fnafIsLightOn("west", {_gameid}) is true:
+        add 1 to {_usage}
+    if fnafIsLightOn("east", {_gameid}) is true:
+        add 1 to {_usage}
+    return {_usage}
+    
+function fnafPowerToBars(gameid: integer) :: text:
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    else if fnafGetPowerUsage({_gameid}) is 1:
+        return "&a&l[]"
+    else if fnafGetPowerUsage({_gameid}) is 2:
+        return "&a&l[][]"
+    else if fnafGetPowerUsage({_gameid}) is 3:
+        return "&a&l[][]&e&l[]"
+    else if fnafGetPowerUsage({_gameid}) is 4:
+        return "&a&l[][]&e&l[]&4&l[]"
+    else if fnafGetPowerUsage({_gameid}) is 5:
+        return "&a&l[][]&e&l[]&4&l[][]"
+        
+function fnafStartClock(gameid: integer):
+    set {-fnaf.session.%{_gameid}%.time} to 12
+    set {_sessionId} to {_gameid}
+    set {_currentNight} to fnafGetCurrentNight({_gameid})
+    wait 90 seconds
+    if {_sessionId} is not {_gameId}:
+        stop
+    if {_currentNight} is not fnafGetCurrentNight({_gameid}):
+        stop
+    fnafAdvanceNpcAi({_gameid})
+    loop 5 times:
+        wait 89 seconds
+        if fnafIsValidGameId({_gameid}) is false:
+            stop
+        if {_sessionId} is not {_gameId}:
+            stop
+        if {_currentNight} is not fnafGetCurrentNight({_gameid}):
+            stop
+        fnafAdvanceNpcAi({_gameid})
+    if fnafGetCurrentTime({_gameid}) is 6:
+       # send "Night Passed, Clearing NPCs and advancing night.." to fnafGetSessionOwner({_gameid})
+        fnafAdvanceNight({_gameid})
+    
+function fnafGetNpcLocation(npc: text, gameid: integer) :: text:
+    if fnafIsValidGameId({_gameid}) is true:
+        return {-fnaf.session.%{_gameid}%.npc.%{_npc}%.location}
+
+function fnafRunGameAi(gameid: integer):
+    if fnafIsValidGameId({_gameid}) is true:
+        fnafStartNpcAi("Foxy", {_gameid}, "5.05 seconds" parsed as timespan)
+        fnafStartNpcAi("Freddy", {_gameid}, "3.10 seconds" parsed as timespan)
+        fnafStartNpcAi("Bonnie", {_gameid}, "5 seconds" parsed as timespan)
+        fnafStartNpcAi("Chica", {_gameid}, "5 seconds" parsed as timespan)
+   
+function fnafIsNpcValid(npc: text, gameid: integer) :: boolean:
+    if fnafIsValidGameId({_gameid}) is false:
+        return false
+    if "%citizen fnafGetNpcId({_npc}, {_gameid})%" is "<none>":
+        return false
+    return true
+
+function fnafStartNpcAi(npc: text, gameid: integer, delay: timespan):
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    set {_night} to fnafGetCurrentNight({_gameid})
+    while {_night} is fnafGetCurrentNight({_gameid}):
+        if fnafIsValidGameId({_gameid}) is false:
+            stop
+        if fnafIsNpcValid({_npc}, {_gameid}) is false:
+            stop
+        #set {_time} to now
+        wait {_delay}
+        #fnafMessageSessionOwner("Time delay for %{_npc}% is: %difference between {_time} and now%", {_gameid})
+        fnafAttemptMovement({_npc}, {_gameid})
+                        
+function fnafAttemptMovement(npc: text, gameid: integer):
+   # make console execute command "ac AttemptMove call!"
+    if fnafIsValidGameId({_gameid}) is true:
+       # fnafMessageSessionOwner("Attempting to move NPC %{_npc}%", {_gameid})
+        # Testing to try and tone down the NPCs 
+        # vvvv vvvv vvvv
+        #if difference between fnafGetNpcLastMovementTime({_npc}, {_gameid}) and now is less than 5 seconds:
+        #   stop
+        if {-fnaf.session.%{_gameid}%.npc.%{_npc}%.froze} is true:
+            stop
+        if fnafIsCameraBlackedOut({_gameid}) is true:
+            stop
+        set {_randomint} to a random integer between 1 and 20
+        if {_npc} is "Foxy":
+            if {_randomint} is greater than fnafGetNpcAiLvl({_npc}, {_gameid}):
+                stop
+            if fnafIsCameraOpen({_gameid}) is true:
+            #    fnafMessageSessionOwner("Foxy is being watched..", {_gameid})
+                stop
+            if difference between {-fnaf.session.%{_gameid}%.camdowntime} and now is less than {-fnaf.session.%{_gameid}%.npc.Foxy.camdowndelaytime}:
+            #    fnafMessageSessionOwner("Foxy is still waiting for the cooldown..", {_gameid})
+                stop
+            fnafAdvanceNpc("Foxy", {_gameid})
+        else if {_npc} is "Bonnie":
+            if {_randomint} is greater than or equal to fnafGetNpcAiLvl({_npc}, {_gameid}):
+                stop
+            else:
+                fnafAdvanceNpc("Bonnie", {_gameid})
+        else if {_npc} is "Chica":
+            if {_randomint} is greater than or equal to fnafGetNpcAiLvl({_npc}, {_gameid}):
+                stop
+            else:
+                fnafAdvanceNpc("Chica", {_gameid})
+        else if {_npc} is "Freddy":
+            if {_randomint} is greater than or equal to fnafGetNpcAiLvl({_npc}, {_gameid}):
+                stop
+            if fnafIsCameraOpen({_gameid}) is true:     
+                if fnafGetCameraNameFromLocation(fnafGetNpcLocation({_npc}, {_gameid})) is fnafGetCameraLocation({_gameid}):
+                   # fnafMessageSessionOwner("Freddy is being watched..", {_gameid})
+                    stop
+            fnafAdvanceNpc("Freddy", {_gameid})
+        
+function fnafGetFoxyStage(gameid: integer) :: integer:
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    return {-fnaf.session.%{_gameid}%.npc.Foxy.stage}
+  
+function fnafSetFoxyStage(stage: integer, gameid: integer) :: integer:
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    set {-fnaf.session.%{_gameid}%.npc.Foxy.stage} to {_stage}
+    
+function fnafGetFoxyAttempts(gameid: integer) :: integer:
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    if {-fnaf.session.%{_gameid}%.npc.Foxy.attempts} is set:
+        return {-fnaf.session.%{_gameid}%.npc.Foxy.attempts}
+    else:
+        return 0
+  
+function fnafAdvanceFoxyAttempts(gameid: integer):
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    if fnafGetFoxyAttempts({_gameid}) is not set:
+        set {-fnaf.session.%{_gameid}%.npc.Foxy.attempts} to 1
+    else:
+        add 1 to {-fnaf.session.%{_gameid}%.npc.Foxy.attempts}
+                
+function fnafAdvanceNpc(npc: text, gameid: integer):
+   # make console execute command "ac AdvanceNpc call!"
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    if fnafIsNpcValid({_npc}, {_gameid}) is false:
+        stop
+   # fnafMessageSessionOwner("Moving NPC %{_npc}%", {_gameid})
+    set {_npcid} to fnafGetNpcId({_npc}, {_gameid})
+    set {_npcloc} to fnafGetNpcLocation({_npc}, {_gameid})
+    set {_npccam} to fnafGetCameraNameFromLocation({_npcloc})
+    set {_player} to fnafGetSessionOwner({_gameid})
+    fnafMarkNpcLastMovementTime({_npc}, {_gameid})
+    give npc {_npcid} the look close trait
+    if {_npc} is "Foxy":
+        if fnafGetFoxyStage({_gameid}) is 1:
+            teleport citizen {_npcid} to fnafGetOffsetLocation({fnaf.npcloc.foxy2}, fnafGetMapId({_gameid}))
+            fnafSetFoxyStage(2, {_gameid})
+        else if fnafGetFoxyStage({_gameid})  is 2:
+            teleport citizen {_npcid} to fnafGetOffsetLocation({fnaf.npcloc.foxy3}, fnafGetMapId({_gameid}))
+            fnafSetFoxyStage(3, {_gameid})
+        else if fnafGetFoxyStage({_gameid}) is 3:
+            #fnafMessageSessionOwner("Making Foxy run", {_gameid})
+            move citizen {_npcid} to fnafGetOffsetLocation({fnaf.westhalldoor}, fnafGetMapId({_gameid})) at speed 2
+            wait 2.5 seconds
+            if fnafIsDoorOpen("west", {_gameid}) is true:
+                fnafJumpscare("Foxy", {_gameid})
+                move citizen {_npcid} to {fnaf.cameras.office} at speed 4
+            else:
+                teleport citizen {_npcid} to fnafGetOffsetLocation({fnaf.foxyspawn}, fnafGetMapId({_gameid}))
+                fnafSetFoxyStage(1, {_gameid})
+                fnafAdvanceFoxyAttempts({_gameid})
+                if fnafGetFoxyAttempts({_gameid}) is 1:
+                    fnafSetPowerLevel(fnafGetPowerLevel({_gameid}) - 1, {_gameid})
+                else if fnafGetFoxyAttempts({_gameid}) is 2:
+                    fnafSetPowerLevel(fnafGetPowerLevel({_gameid}) - 6, {_gameid})
+                else if fnafGetFoxyAttempts({_gameid}) is 3:
+                    fnafSetPowerLevel((fnafGetPowerLevel({_gameid}) - random integer between 6 and 11), {_gameid})
+                else:
+                    fnafSetPowerLevel(fnafGetPowerLevel({_gameid}) - 5, {_gameid})
+    else if {_npc} is "Bonnie":
+     #   fnafMessageSessionOwner("NPC cam: %{_npccam}%", {_gameid}) debug
+        if {_npccam} is "1A":
+            chance of 50%:
+                fnafMoveAiToLocation({_npcid}, "bonnie1")
+            else:
+                fnafMoveAiToLocation({_npcid}, "bonnie2")
+        else if {_npccam} is "1B":
+            chance of 50%:
+                fnafMoveAiToLocation({_npcid}, "bonnie3")
+            else:
+                fnafMoveAiToLocation({_npcid}, "bonnie4")
+        else if {_npccam} is "5":
+            fnafMoveAiToLocation({_npcid}, "bonnie5")
+        else if {_npccam} is "3":
+            fnafMoveAiToLocation({_npcid}, "bonnie6")
+            chance of 25%:
+                play "ambient_cave" to {_player}
+        else if {_npccam} is "2A":
+            fnafMoveAiToLocation({_npcid}, "bonnie7")
+            chance of 45%:
+                play "ambient_cave" to {_player}
+        else if {_npccam} is "2B":
+            fnafMoveAiToLocation({_npcid}, "westhalldoor")
+            play "entity_horse_jump" to {_player}
+        else if {_npccam} is "westhalldoor":
+            if fnafIsDoorOpen("west", {_gameid}) is true:
+                fnafJumpscare("Bonnie", {_gameid})
+            else:
+                fnafMoveAiToLocation({_npcid}, "bonnie%random integer between 1 and 4%")
+    else if {_npc} is "Chica":
+        if {_npccam} is "1A":
+            chance of 50%:
+                fnafMoveAiToLocation({_npcid}, "chica1")
+            else:
+                fnafMoveAiToLocation({_npcid}, "chica2")
+        else if {_npccam} is "1B":
+            chance of 50%:
+                fnafMoveAiToLocation({_npcid}, "chica3")
+            else:
+                fnafMoveAiToLocation({_npcid}, "chica4")
+        else if {_npccam} is "7":
+            fnafMoveAiToLocation({_npcid}, "chicakitchen")
+            wait 5 seconds
+            if fnafGetCameraNameFromLocation(fnafGetNpcLocation({_npc}, {_gameid})) is "chicakitchen":
+                play "entity_zombie_attack_iron_door" to {_player} at volume 0.5
+                wait 0.6 second
+                play "entity_zombie_attack_iron_door" to {_player} at volume 0.5
+                wait 0.7 seconds
+                play "entity_zombie_break_wooden_door" to {_player} at volume 0.5
+        else if {_npccam} is "chicakitchen":
+            chance of 50%:
+                fnafMoveAiToLocation({_npcid}, "chica5")
+            else:
+                fnafMoveAiToLocation({_npcid}, "chica6")
+        else if {_npccam} is "4A":
+            fnafMoveAiToLocation({_npcid}, "chica7")
+        else if {_npccam} is "4B":
+            fnafMoveAiToLocation({_npcid}, "easthallwindow")
+            play "entity_horse_land" to {_player}
+        else if {_npccam} is "easthallwindow":
+            if fnafIsDoorOpen("east", {_gameid}) is true:
+                fnafJumpscare("Chica", {_gameid})
+            else:
+                fnafMoveAiToLocation({_npcid}, "chica%random integer between 1 and 4%")
+    else if {_npc} is "Freddy":
+    # Countdown is 15 sec - 1.67(x-1) (where x = AI lvl)
+
+        #wait (15 - (1.67 * %(fnafGetNpcAiLvl("Freddy", {_gameid}))% - 1)) seconds
+        if {_npccam} is "1A":
+            fnafMoveAiToLocation({_npcid}, "freddy2")
+        else if {_npccam} is "1B":
+            fnafMoveAiToLocation({_npcid}, "freddy3")
+        else if {_npccam} is "7":
+            fnafMoveAiToLocation({_npcid}, "freddy4")
+        else if {_npccam} is "4A":
+            fnafMoveAiToLocation({_npcid}, "freddy5")
+        else if {_npccam} is "4B":
+            if fnafIsDoorOpen("east", {_gameid}) is true:
+                chance of 75%:
+                    stop
+                if fnafIsCameraOpen({_gameid}) is true:
+                    while fnafIsCameraOpen({_gameid}) is true:
+                        if fnafIsValidGameId({_gameid}) is false:
+                            stop
+                        wait 0.1 second
+                    fnafJumpscare("Freddy", {_gameid})
+                else:
+                    fnafJumpscare("Freddy", {_gameid})
+            else:
+                fnafMoveAiToLocation({_npcid}, "freddy%random integer between 2 and 3%")
+                
+function fnafGetCameraNameFromLocation(loc: text) :: text:
+    if {_loc} contains "bonnie":
+        if {_loc} is "bonniespawn":
+            return "1A"
+        else if {_loc} is "bonnie1" or "bonnie2":
+            return "1B"
+        else if {_loc} is "bonnie3" or "bonnie4":
+            return "5"
+        else if {_loc} is "bonnie5":
+            return "3"
+        else if {_loc} is "bonnie6":
+            return "2A"
+        else if {_loc} is "bonnie7":
+            return "2B"
+    else if {_loc} contains "chica":
+        if {_loc} is "chicaspawn":
+            return "1A"
+        else if {_loc} is "chica1" or "chica2":
+            return "1B"
+        else if {_loc} is "chica3" or "chica4":
+            return "7"
+        else if {_loc} is "chica5" or "chica6":
+            return "4A"
+        else if {_loc} is "chica7":
+            return "4B"
+        else if {_loc} is "chicakitchen":
+            return "chicakitchen"
+    else if {_loc} contains "freddy":
+        if {_loc} is "freddyspawn":
+            return "1A"
+        else if {_loc} is "freddy2":
+            return "1B"
+        else if {_loc} is "freddy3":
+            return "7"
+        else if {_loc} is "freddy4":
+            return "4A"
+        else if {_loc} is "freddy5":
+            return "4B"
+    else if {_loc} is "westhalldoor":
+        return "westhalldoor"
+    else if {_loc} is "easthallwindow":
+        return "easthallwindow"
+            
+function fnafGetNpcNameFromId(npcid: integer) :: text:
+    loop {fnaf.sessions::*}:
+        if {-fnaf.session.%loop-value%.npc.Foxy} is {_npcid}:
+            return "Foxy"
+        else if {-fnaf.session.%loop-value%.npc.Bonnie} is {_npcid}:
+            return "Bonnie"
+        else if {-fnaf.session.%loop-value%.npc.Chica} is {_npcid}:
+            return "Chica"
+        else if {-fnaf.session.%loop-value%.npc.Freddy} is {_npcid}:
+            return "Freddy"
+
+#
+# TODO: Probably need a faster/better way of doing this, possibly just including gameid with functions like MoveAiToLocation.
+# TODO: Also, do we REALLY need to add to an array called ids? Just do it in the function??
+# 
+function fnafGetGameIdFromNpcId(npcid: integer) :: integer:
+    loop {fnaf.sessions::*}:
+        add loop-value to {_ids::*}
+    loop {_ids::*}:
+        if {-fnaf.session.%loop-value%.npc.Freddy} is {_npcid}:
+            return loop-value
+        else if {-fnaf.session.%loop-value%.npc.Foxy} is {_npcid}:
+            return loop-value
+        else if {-fnaf.session.%loop-value%.npc.Chica} is {_npcid}:
+            return loop-value
+        else if {-fnaf.session.%loop-value%.npc.Bonnie} is {_npcid}:
+            return loop-value
+  
+function fnafMoveAiToLocation(npcid: integer, location: text):
+   # make console execute command "ac MoveAi call!"
+    set {_npc} to fnafGetNpcNameFromId({_npcid})
+    set {_gameid} to fnafGetGameIdFromNpcId({_npcid})
+    #fnafMessageSessionOwner("%{_npc}% is now visible on %fnafGetCameraNameFromLocation({_location})%", fnafGetGameIdFromNpcId({_npcid}))
+    if {_location} contains "spawn":
+        teleport citizen {_npcid} to fnafGetOffsetLocation({fnaf.%{_npc}%spawn}, fnafGetMapId({_gameid}))
+    else if {_location} is "westhalldoor":
+        if {_npc} is "Chica" or "Bonnie":
+            fnafCameraBlackout({_gameid})
+        teleport citizen {_npcid} to fnafGetOffsetLocation({fnaf.westhalldoor}, fnafGetMapId({_gameid}))
+    else if {_location} is "easthallwindow":
+        if {_npc} is "Chica" or "Bonnie":
+            fnafCameraBlackout({_gameid})
+        teleport citizen {_npcid} to fnafGetOffsetLocation({fnaf.easthallwindow}, fnafGetMapId({_gameid}))
+    else if {_location} is "chicakitchen":
+        fnafCameraBlackout({_gameid})
+        teleport citizen {_npcid} to fnafGetOffsetLocation({fnaf.npcloc.chicakitchen}, fnafGetMapId({_gameid}))
+    else:
+        if fnafIsCameraOccupied(fnafGetCameraNameFromLocation({_location}), {_gameid}) is true:
+         #   fnafMessageSessionOwner("Failed to move %{_npc}%, spot occupied", {_gameid})
+            if {_npc} is "Chica":
+                chance of 75%:
+                    fnafMoveAiToLocation({_npcid}, "chica%random integer between 1 and 4%")
+                else:
+                    fnafMoveAiToLocation({_npcid}, "chicakitchen")
+            else if {_npc} is "Bonnie":
+                fnafMoveAiToLocation({_npcid}, "bonnie%random integer between 1 and 4%")
+            else if {_npc} is "Freddy":
+                fnafMoveAiToLocation({_npcid}, "freddy%random integer between 2 and 4%")
+            stop
+        if {_npc} is "Chica" or "Bonnie":
+            fnafCameraBlackout({_gameid})
+        teleport citizen {_npcid} to fnafGetOffsetLocation({fnaf.npcloc.%{_location}%}, fnafGetMapId({_gameid}))
+    set {-fnaf.session.%{_gameid}%.npc.%{_npc}%.location} to {_location}
+    
+#
+# Dynamic Arena Creation/Destruction Testing
+#   
+#function fnafBuildArena(startx: integer, starty: integer, startz: integer):
+#    stop
+#    
+#function fnafCaptureArena():
+#    set {fnaf.arenasetup.maxX} to x-loc of {fnaf.arenasetup.pos2}
+#    set {fnaf.arenasetup.maxY} to y-loc of {fnaf.arenasetup.pos2}
+#    set {fnaf.arenasetup.maxZ} to z-loc of {fnaf.arenasetup.pos2}
+#    set {fnaf.arenasetup.minX} to x-loc of {fnaf.arenasetup.pos1}
+#    set {fnaf.arenasetup.minY} to y-loc of {fnaf.arenasetup.pos1}
+#    set {fnaf.arenasetup.minZ} to z-loc of {fnaf.arenasetup.pos1}
+#    set {_x} to x-loc of {fnaf.arenasetup.pos1}
+#    set {_y} to y-loc of {fnaf.arenasetup.pos1}
+#    set {_z} to z-loc of {fnaf.arenasetup.pos1}
+#    while {_z} is less than {fnaf.arenasetup.maxZ} + 1:
+#        #broadcast "Curr Z: %{_z}%, Max Z: %{fnaf.arenasetup.maxZ} + 1%"
+#        while {_y} is less than {fnaf.arenasetup.maxY} + 1:
+#           # broadcast "Curr Y: %{_y}%, Max Y: %{fnaf.arenasetup.maxY} + 1%"
+#            while {_x} is less than {fnaf.arenasetup.maxX} + 1:
+#                if {-kill} is 1:
+#                    stop
+#               # broadcast "Curr X: %{_z}%, Max Z: %{fnaf.arenasetup.maxX} + 1%"   
+#                add block at location at ({_x}, {_y}, {_z}) in world "FNAF" parsed as world to {-fnaf.arena.blocks::*}
+#                add 1 to {_x}
+#            wait 0.1 second
+#            broadcast "Add to Y - current block: %{_x}% %{_y}% %{_z}%"
+#            set {_x} to {fnaf.arenasetup.minX}
+#            add 1 to {_y}
+#        broadcast "Add to Z"
+#        set {_y} to {fnaf.arenasetup.minY}
+#        add 1 to {_z}
+#    make console execute command "ac [FNAF] Arena Capture Finished!"
+#    stop
+#
+#on left click:
+#    if player's tool is golden axe:
+#        if player is op:
+#            set {fnaf.arenasetup.pos1} to event-block's location
+#            send "Pos 1 set to %event-block's location%"
+#            
+#on right click:
+#    if player's tool is golden axe:
+#        if player is op:
+#            set {fnaf.arenasetup.pos2} to event-block's location
+#            send "Pos 2 set to %event-block's location%"
+#
+
+
+#
+# Get the offset location for a position based on the arena number (multiple sessions)
+#
+function fnafGetOffsetLocation(loc: location, arenanum: integer) :: location:
+    if {_arenanum} is 0:
+        return {_loc}
+    set {_oldloc} to {_loc}
+    add (296 * {_arenanum}) to the z-loc of {_loc}
+   # make console execute command "ac [FNAF DEBUG] Location %{_oldloc}% would be %{_loc}% at %{_arenanum}%"
+    return {_loc}
+    
+function fnafIsCameraOccupied(cam: text, gameid: integer) :: boolean:
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    if fnafGetCameraNameFromLocation(fnafGetNpcLocation("Foxy", {_gameid})) is {_cam}:
+        return true
+    if fnafGetCameraNameFromLocation(fnafGetNpcLocation("Chica", {_gameid})) is {_cam}:
+        return true
+    if fnafGetCameraNameFromLocation(fnafGetNpcLocation("Freddy", {_gameid})) is {_cam}:
+        return true
+    if fnafGetCameraNameFromLocation(fnafGetNpcLocation("Bonnie", {_gameid})) is {_cam}:
+        return true
+    return false
+    
+function fnafIsSpotOccupied(spot: text, gameid: integer) :: boolean:
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    if fnafGetNpcLocation("Foxy", {_gameid}) is {_spot}:
+        return true
+    else if fnafGetNpcLocation("Freddy", {_gameid}) is {_spot}:
+        return true
+    else if fnafGetNpcLocation("Bonnie", {_gameid}) is {_spot}:
+        return true
+    else if fnafGetNpcLocation("Chica", {_gameid}) is {_spot}:
+        return true
+    return false
+                
+on right click:
+   # make console execute command "ac RightClick call!"
+    if player is not in world "FNAF":
+        stop
+    if player's gamemode is not adventure:
+        stop
+    set {_gameid} to fnafGetPlayerGameId(player)
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    if difference between {-fnaf.session.%{_gameid}%.lastclicktime} and now is less than 0.1 seconds:
+        stop
+    set {-fnaf.session.%{_gameid}%.lastclicktime} to now
+    if event-block is set:
+        if event-block is oak wood wall sign:
+            if location of event-block is fnafGetOffsetLocation({fnaf.westdoorsign}, fnafGetMapId({_gameid})):
+                fnafToggleDoor("west", {_gameid})
+            else if location of event-block is fnafGetOffsetLocation({fnaf.eastdoorsign}, fnafGetMapId({_gameid})):
+                fnafToggleDoor("east", {_gameid})
+            else if location of event-block is fnafGetOffsetLocation({fnaf.westlightsign}, fnafGetMapId({_gameid})):
+                fnafToggleLight("west", {_gameid})
+            else if location of event-block is fnafGetOffsetLocation({fnaf.eastlightsign}, fnafGetMapId({_gameid})):
+                fnafToggleLight("east", {_gameid})
+        else:
+            cancel event
+            if name of player's held item is "&b&lCameras":
+                fnafShowCameraControls(fnafGetPlayerGameId(player))
+            else if name of player's held item is "&c&lClose Cameras":
+                fnafCloseCamera(fnafGetPlayerGameId(player))
+            else:
+                fnafOpenCamera(name of player's held item, fnafGetPlayerGameId(player))
+    else:
+        if player is in world "FNAF":
+            if player's gamemode is adventure:
+                cancel event
+                if name of player's held item is "&b&lCameras":
+                    fnafShowCameraControls(fnafGetPlayerGameId(player))
+                else if name of player's held item is "&c&lClose Cameras":
+                    fnafCloseCamera(fnafGetPlayerGameId(player))
+                else:
+                    fnafOpenCamera(name of player's held item, fnafGetPlayerGameId(player))
+                
+on drop:
+    if player is in world "FNAF":
+        if player's gamemode is adventure:
+            cancel event
+            
+on place:
+    if player is in world "FNAF":
+        if player's gamemode is adventure:
+            send player's tool
+            cancel event    
+            if name of player's held item is "&b&lCameras":
+                fnafShowCameraControls(fnafGetPlayerGameId(player))
+            else if name of player's held item is "&c&lClose Cameras":
+                fnafCloseCamera(fnafGetPlayerGameId(player))
+            else:
+                fnafOpenCamera(name of player's held item, fnafGetPlayerGameId(player))
+          
+on break:
+    if player is in world "FNAF":
+        if player's gamemode is adventure:
+            cancel event
+
+on leave:
+    if fnafIsValidGameId(fnafGetPlayerGameId(player)) is true:  
+        fnafStopGame(fnafGetPlayerGameId(player))
+
+function fnafIsDoorOpen(door: text, gameid: integer) :: boolean:
+   # make console execute command "ac isDoorOpen call!"
+    if fnafIsValidGameId({_gameid}) is true:
+        if {_door} is "west":
+            if block at fnafGetOffsetLocation({fnaf.westhalldoorhigh}, fnafGetMapId({_gameid})) is barrier block:
+                return true
+        if {_door} is "east":
+            if block at fnafGetOffsetLocation({fnaf.easthalldoorhigh}, fnafGetMapId({_gameid})) is barrier block:
+                return true
+    return false
+    
+function fnafToggleDoor(door: text, gameid: integer):
+    if fnafIsValidGameId({_gameid}) is true:
+        if fnafIsPowerOutage({_gameid}) is true:
+            stop
+        if {_door} is "west":
+            if fnafIsDoorOpen("west", {_gameid}) is true:
+                fnafCloseDoor("west", {_gameid})
+            else:
+                fnafOpenDoor("west", {_gameid})
+        else if {_door} is "east":
+            if fnafIsDoorOpen("east", {_gameid}) is true:
+                fnafCloseDoor("east", {_gameid})
+            else:
+                fnafOpenDoor("east", {_gameid})
+ 
+function fnafOpenDoor(door: text, gameid: integer):
+  #  make console execute command "ac OpenDoor call!"
+    if fnafIsValidGameId({_gameid}) is true:
+        if {_door} is "west":
+            set block at fnafGetOffsetLocation({fnaf.westhalldoorhigh}, fnafGetMapId({_gameid})) to barrier
+            set block at fnafGetOffsetLocation({fnaf.westhalldoorlow}, fnafGetMapId({_gameid})) to barrier
+        if {_door} is "east":
+            set block at fnafGetOffsetLocation({fnaf.easthalldoorhigh}, fnafGetMapId({_gameid})) to barrier
+            set block at fnafGetOffsetLocation({fnaf.easthalldoorlow}, fnafGetMapId({_gameid})) to barrier
+            
+function fnafCloseDoor(door: text, gameid: integer):
+  #  make console execute command "ac CloseDoor call!"
+    if fnafIsValidGameId({_gameid}) is true:
+        if {_door} is "west":
+            # Disable the door if Bonnie is in the corner
+            if fnafGetCameraNameFromLocation(fnafGetNpcLocation("Bonnie", {_gameid})) is "2B":
+                fnafMessageSessionOwner("&7[&6&lFNAF&7] &cWest Door is blocked by something.. (or someone..)", {_gameid})
+                stop
+            set block at fnafGetOffsetLocation({fnaf.westhalldoorhigh}, fnafGetMapId({_gameid})) to iron block
+            set block at fnafGetOffsetLocation({fnaf.westhalldoorlow}, fnafGetMapId({_gameid})) to iron block
+        if {_door} is "east":
+            set block at fnafGetOffsetLocation({fnaf.easthalldoorhigh}, fnafGetMapId({_gameid})) to iron block
+            set block at fnafGetOffsetLocation({fnaf.easthalldoorlow}, fnafGetMapId({_gameid})) to iron block
+  
+function fnafIsLightOn(light: text, gameid: integer) :: boolean:
+    #make console execute command "ac IsLightOn call!"
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    if block at fnafGetOffsetLocation({fnaf.%{_light}%halllight}, fnafGetMapId({_gameid})) is air:
+        return false
+    else:
+        return true
+        
+function fnafIsPowerOutage(gameid: integer) :: boolean:
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    if fnafIsNpcValid("Foxy", {_gameid}) is false:
+        if fnafIsNpcValid("Bonnie", {_gameid}) is false:
+            if fnafIsNpcValid("Chica", {_gameid}) is false:
+                if fnafIsNpcValid("Freddy", {_gameid}) is true:
+                    return true
+    return false
+  
+function fnafToggleLight(light: text, gameid: integer):
+    if fnafIsValidGameId({_gameid}) is true:
+        if fnafIsPowerOutage({_gameid}) is true:
+            stop
+        if {_light} is "west":
+            if fnafIsLightOn("west", {_gameid}) is true:
+                fnafDisableLight("west", {_gameid})
+            else:
+                fnafEnableLight("west", {_gameid})
+        else if {_light} is "east":
+            if fnafIsLightOn("east", {_gameid}) is true:
+                fnafDisableLight("east", {_gameid})
+            else:
+                fnafEnableLight("east", {_gameid})
+ 
+function fnafEnableLight(light: text, gameid: integer):
+    #make console execute command "ac enablelight call!"
+    if fnafIsValidGameId({_gameid}) is true:
+        if {_light} is "west":
+            fnafDisableLight("east", {_gameid})
+            set block at fnafGetOffsetLocation({fnaf.westhalllight}, fnafGetMapId({_gameid})) to glowstone
+            set block at fnafGetOffsetLocation({fnaf.westhallblackdoortop}, fnafGetMapId({_gameid})) to air
+            set block at fnafGetOffsetLocation({fnaf.westhallblackdoorbottom}, fnafGetMapId({_gameid})) to air
+            set block at fnafGetOffsetLocation({fnaf.westwindowtl}, fnafGetMapId({_gameid})) to air
+            set block at fnafGetOffsetLocation({fnaf.westwindowtr}, fnafGetMapId({_gameid})) to air
+            set block at fnafGetOffsetLocation({fnaf.westwindowbl}, fnafGetMapId({_gameid})) to air
+            set block at fnafGetOffsetLocation({fnaf.westwindowbr}, fnafGetMapId({_gameid})) to air
+        if {_light} is "east":
+            fnafDisableLight("west", {_gameid})
+            set block at fnafGetOffsetLocation({fnaf.easthalllight}, fnafGetMapId({_gameid})) to glowstone
+            set block at fnafGetOffsetLocation({fnaf.easthallblackdoortop}, fnafGetMapId({_gameid})) to air
+            set block at fnafGetOffsetLocation({fnaf.easthallblackdoorbottom}, fnafGetMapId({_gameid})) to air
+            set block at fnafGetOffsetLocation({fnaf.eastwindowtl}, fnafGetMapId({_gameid})) to air
+            set block at fnafGetOffsetLocation({fnaf.eastwindowtr}, fnafGetMapId({_gameid})) to air
+            set block at fnafGetOffsetLocation({fnaf.eastwindowbl}, fnafGetMapId({_gameid})) to air
+            set block at fnafGetOffsetLocation({fnaf.eastwindowbr}, fnafGetMapId({_gameid})) to air
+            
+function fnafDisableLight(light: text, gameid: integer):
+    #make console execute command "ac disablelight call!"
+    if fnafIsValidGameId({_gameid}) is true:
+        if {_light} is "west":
+            set block at fnafGetOffsetLocation({fnaf.westhalllight}, fnafGetMapId({_gameid})) to air
+            set block at fnafGetOffsetLocation({fnaf.westhallblackdoortop}, fnafGetMapId({_gameid})) to black wool
+            set block at fnafGetOffsetLocation({fnaf.westhallblackdoorbottom}, fnafGetMapId({_gameid})) to black wool
+            set block at fnafGetOffsetLocation({fnaf.westwindowtl}, fnafGetMapId({_gameid})) to black wool
+            set block at fnafGetOffsetLocation({fnaf.westwindowtr}, fnafGetMapId({_gameid})) to black wool
+            set block at fnafGetOffsetLocation({fnaf.westwindowbl}, fnafGetMapId({_gameid})) to black wool
+            set block at fnafGetOffsetLocation({fnaf.westwindowbr}, fnafGetMapId({_gameid})) to black wool
+        if {_light} is "east":
+            set block at fnafGetOffsetLocation({fnaf.easthalllight}, fnafGetMapId({_gameid})) to air
+            set block at fnafGetOffsetLocation({fnaf.easthallblackdoortop}, fnafGetMapId({_gameid})) to black wool
+            set block at fnafGetOffsetLocation({fnaf.easthallblackdoorbottom}, fnafGetMapId({_gameid})) to black wool
+            set block at fnafGetOffsetLocation({fnaf.eastwindowtl}, fnafGetMapId({_gameid})) to black wool
+            set block at fnafGetOffsetLocation({fnaf.eastwindowtr}, fnafGetMapId({_gameid})) to black wool
+            set block at fnafGetOffsetLocation({fnaf.eastwindowbl}, fnafGetMapId({_gameid})) to black wool
+            set block at fnafGetOffsetLocation({fnaf.eastwindowbr}, fnafGetMapId({_gameid})) to black wool
+    
+function fnafGetCameraLocation(gameid: integer) :: text:
+    if {-fnaf.session.%{_gameid}%.location} is set:
+        return {-fnaf.session.%{_gameid}%.location}
+
+function fnafIsCameraOpen(gameid: integer) :: boolean:
+    if fnafIsValidGameId({_gameid}) is true:
+        if {-fnaf.session.%{_gameid}%.location} is not "office":
+            return true
+    return false
+
+function fnafLockCamera(gameid: integer):
+    set {-fnaf.session.%{_gameid}%.cameralock} to true
+    
+function fnafUnlockCamera(gameid: integer):
+    clear {-fnaf.session.%{_gameid}%.cameralock}
+
+function fnafOpenCamera(cam: text, gameid: integer):
+   # make console execute command "ac opencam call!"
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    if fnafGetIsAdvancing({_gameid}) is true:
+        stop
+    set {_player} to fnafGetSessionOwner({_gameid})
+    fnafDisableLight("west", {_gameid})
+    fnafDisableLight("east", {_gameid})
+    if fnafIsCameraBlackedOut({_gameid}) is true:
+        teleport {_player} to fnafGetOffsetLocation({fnaf.blackoutcam}, fnafGetMapId({_gameid}))
+        stop
+    if {_cam} is "&bCam 1A/1B/1C":
+        if {-fnaf.session.%{_gameid}%.location} is "1A":
+            teleport {_player} to fnafGetOffsetLocation({fnaf.camloc.1B}, fnafGetMapId({_gameid}))
+            set {-fnaf.session.%{_gameid}%.location} to "1B"
+        else if {-fnaf.session.%{_gameid}%.location} is "1B":
+            teleport {_player} to fnafGetOffsetLocation({fnaf.camloc.1C}, fnafGetMapId({_gameid}))
+            set {-fnaf.session.%{_gameid}%.location} to "1C"
+        else if {-fnaf.session.%{_gameid}%.location} is "1C":
+            teleport {_player} to fnafGetOffsetLocation({fnaf.camloc.1A}, fnafGetMapId({_gameid}))
+            set {-fnaf.session.%{_gameid}%.location} to "1A"
+        else:
+            teleport {_player} to fnafGetOffsetLocation({fnaf.camloc.1A}, fnafGetMapId({_gameid}))
+            set {-fnaf.session.%{_gameid}%.location} to "1A"
+    else if {_cam} is "&bCam 2A/2B":
+        if {-fnaf.session.%{_gameid}%.location} is "2B":
+            teleport {_player} to fnafGetOffsetLocation({fnaf.camloc.2A}, fnafGetMapId({_gameid}))
+            set {-fnaf.session.%{_gameid}%.location} to "2A"
+        else if {-fnaf.session.%{_gameid}%.location} is "2A":
+            teleport {_player} to fnafGetOffsetLocation({fnaf.camloc.2B}, fnafGetMapId({_gameid}))
+            set {-fnaf.session.%{_gameid}%.location} to "2B"
+        else:
+            teleport {_player} to fnafGetOffsetLocation({fnaf.camloc.2B}, fnafGetMapId({_gameid}))
+            set {-fnaf.session.%{_gameid}%.location} to "2B"
+    else if {_cam} is "&bCam 3":
+        teleport {_player} to fnafGetOffsetLocation({fnaf.camloc.3}, fnafGetMapId({_gameid}))
+        set {-fnaf.session.%{_gameid}%.location} to "3"
+    else if {_cam} is "&bCam 4A/4B":
+        if {-fnaf.session.%{_gameid}%.location} is "4A":
+            teleport {_player} to fnafGetOffsetLocation({fnaf.camloc.4B}, fnafGetMapId({_gameid}))
+            set {-fnaf.session.%{_gameid}%.location} to "4B"
+        else if {-fnaf.session.%{_gameid}%.location} is "4B":
+            teleport {_player} to fnafGetOffsetLocation({fnaf.camloc.4A}, fnafGetMapId({_gameid}))
+            set {-fnaf.session.%{_gameid}%.location} to "4A"
+        else:
+            teleport {_player} to fnafGetOffsetLocation({fnaf.camloc.4A}, fnafGetMapId({_gameid}))
+            set {-fnaf.session.%{_gameid}%.location} to "4A"
+    else if {_cam} is "&bCam 5":
+        teleport {_player} to fnafGetOffsetLocation({fnaf.camloc.5}, fnafGetMapId({_gameid}))
+        set {-fnaf.session.%{_gameid}%.location} to "5"
+    else if {_cam} is "&bCam 7":
+        teleport {_player} to fnafGetOffsetLocation({fnaf.camloc.7}, fnafGetMapId({_gameid}))
+        set {-fnaf.session.%{_gameid}%.location} to "7"
+            
+function fnafCloseCamera(gameid: integer):
+   # make console execute command "ac CloseCam call!"
+    if fnafIsValidGameId({_gameid}) is true:
+        if fnafGetIsAdvancing({_gameid}) is true:
+            stop
+        set {_player} to fnafGetSessionOwner({_gameid})
+        if {-fnaf.session.%{_gameid}%.location} is not "office":
+            teleport {_player} to fnafGetOffsetLocation({fnaf.cameras.office}, fnafGetMapId({_gameid}))
+            fnafSetPreviousLocation({-fnaf.session.%{_gameid}%.location}, {_gameid})
+            set {-fnaf.session.%{_gameid}%.location} to "office"
+        set {-fnaf.session.%{_gameid}%.camdowntime} to now
+        set {-fnaf.session.%{_gameid}%.npc.Foxy.camdowndelaytime} to "%random number between 2 and 17% seconds" parsed as timespan
+        clear {_player}'s inventory
+        add 1 skeleton skull named "&b&lCameras" to slot 4 of {_player}
+  
+function fnafSetPreviousLocation(loc: text, gameid: integer):
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    set {-fnaf.session.%{_gameid}%.lastloc} to {_loc}
+
+function fnafGetPreviousLocation(gameid: integer) :: text:
+    if fnafIsValidGameId({_gameid}) is false:
+        stop
+    return {-fnaf.session.%{_gameid}%.lastloc}
+  
+#
+# //TODO: Make it so that the game automatically shows the last camera when the controls are shown!!
+#
+function fnafShowCameraControls(gameid: integer):
+    if fnafIsValidGameId({_gameid}) is true:
+        set {_player} to fnafGetSessionOwner({_gameid})
+        teleport {_player} to fnafGetOffsetLocation({fnaf.camloc.%fnafGetPreviousLocation({_gameid})%}, fnafGetMapId({_gameid}))
+        set {-fnaf.session.%{_gameid}%.location} to fnafGetPreviousLocation({_gameid})
+        clear {_player}'s inventory
+        fnafOpenCamera(fnafGetPreviousLocation({_gameid}), {_gameid})
+        add 1 skeleton skull named "&bCam 1A/1B/1C" to slot 0 of {_player}
+        add 1 skeleton skull named "&bCam 2A/2B" to slot 3 of {_player}
+        add 1 skeleton skull named "&bCam 3" to slot 2 of {_player}
+        add 1 skeleton skull named "&bCam 4A/4B" to slot 5 of {_player}
+        add 1 skeleton skull named "&bCam 5" to slot 1 of {_player}
+        add 1 skeleton skull named "&bCam 7" to slot 6 of {_player}
+        add 1 barrier named "&c&lClose Cameras" to slot 4 of {_player}
+
+on player move:
+    if player is in world "FNAF":
+        if player's gamemode is adventure:
+            if fnafIsValidGameId(fnafGetPlayerGameId(player)) is true:
+                set {_gameid} to fnafGetPlayerGameId(player)
+               # broadcast fnafGetCameraLocation({_gameid})
+                if fnafGetCameraLocation({_gameid}) is "office":
+                    stop
+                cancel event
