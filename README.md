@@ -6,6 +6,7 @@ No extra Skript add-ons or server plugins required.
 WorldEdit recommended to repeatedly duplicate your FNAF map.
 FNAF world built in Minecraft 1.16.5, older server software will require manually recreating the map.
 FNAF 1 map created by SilverDagger. All other aspects created/developed by awgybop1.
+Built over the course of 20 hours during Christmas 2023, with additional development over 4-5 days for bug testing.
 
 Game comes with world already setup, allowing for 15 consecutive FNAF games at once.
 Simply drag and drop the Skript (FNAF.sk) and the world (FNAF Folder) into your server's appropriate directories.
