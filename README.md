@@ -1,6 +1,6 @@
 <h1>FNAF 1 Minecraft Clone</h1>
 
-Requires Spigot/PaperMC, <b>Skript</b> and <b>Citizens</b>.
+Requires Spigot/PaperMC, <b>Skript</b>, <b>Multiverse</b> and <b>Citizens</b>.
 Tested with Skript 2.6.4 and Citizens 2.0.27-SNAPSHOT.
 No extra Skript add-ons or server plugins required.
 WorldEdit recommended to repeatedly duplicate your FNAF map.
@@ -11,6 +11,16 @@ Built over the course of 20 hours during Christmas 2023, with additional develop
 Game comes with world already setup, allowing for 15 consecutive FNAF games at once.
 Simply drag and drop the Skript (FNAF.sk) and the world (FNAF Folder) into your server's appropriate directories.
 (/plugins/Skript/scripts/) for FNAF and (/) for the world.
+After plugin, script, and world installation, import the FNAF world with Multiverse (/mv import FNAF normal) and reload your scripts (/skript reload all).
+Start playing with the <b>/fnaf start</b> command (no special permissions required).
+
+This script is designed for either:
+A) A server where it is the only game-mode.
+
+B) A server that implements multi-world inventory management, like Multiverse-Inventories or similar.
+
+<b>If you install this on a production server as an additional gamemode, player inventories WILL be overwritten without proper precaution. You have been warned!</b>
+
 You can freely change the map, but as of now you must make the changes directly to the Skript variables.
 <i>The recommended way is to enable Skript parsing in chat via your Skript config.yml, and using Skript <b>\set {var} to ""</b> logic in the chat.</i>
 An easier way of modifying the game's behavior without modifying the script will be added in a future version.
